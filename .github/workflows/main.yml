@@ -1,0 +1,117 @@
+name: Go CRUD MariaDB
+
+on:
+  push:
+    branches:
+      - main  # Cambia según sea necesario
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout the repository code
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Install Docker and Docker Compose
+      - name: Install Docker and Docker Compose
+        run: |
+          # Actualizar el índice de paquetes
+          sudo apt-get update
+
+          # Instalar Docker si no está instalado
+          if ! command -v docker &> /dev/null; then
+            echo "Docker no encontrado. Instalando..."
+            sudo apt-get install -y docker.io
+          else
+            echo "Docker ya está instalado."
+          fi
+
+          # Instalar Docker Compose si no está instalado
+          if ! command -v docker-compose &> /dev/null; then
+            echo "Docker Compose no encontrado. Instalando..."
+            sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+            sudo chmod +x /usr/local/bin/docker-compose
+          else
+            echo "Docker Compose ya está instalado."
+          fi
+
+          # Verificar las versiones de Docker y Docker Compose
+          docker --version
+          docker-compose --version
+
+      # Log in to Docker Hub
+      - name: Log in to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}  # Asegúrate de que los secretos estén configurados
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          
+
+      # Build and push Docker images using Docker Compose
+      - name: Build and push Docker images with Docker Compose
+        run: |
+          # Construir las imágenes con Docker Compose
+          docker-compose -f docker-compose.yml build
+
+          # Subir las imágenes a Docker Hub
+          docker-compose -f docker-compose.yml push
+
+
+
+
+
+  deploy-to-ec2:
+      needs: build-and-push
+      runs-on: ubuntu-latest
+      steps:
+        - name: Trigger redeploy on EC2
+          uses: appleboy/ssh-action@master
+          with:
+            host: ${{ secrets.HOST_DNS }}
+            username: ${{ secrets.USERNAME }}
+            key: ${{ secrets.EC2_SSH_KEY }}
+            script: |
+              echo "Conectando a ${{ secrets.HOST_DNS }} para redeploy"
+
+
+              
+              # Descargar las imágenes desde Docker Hub
+              docker pull mariadb:latest
+              docker pull sebastianwebapp/go_mariadb:latest
+
+
+              # Asegurarse de tener la red y volumen creados
+              docker network create app-network || true
+              docker volume create db_data || true
+
+              # Detener y eliminar contenedores antiguos
+              docker stop maria_db || true
+              docker rm maria_db || true
+              
+              docker stop go_mariadb || true
+              docker rm go_mariadb || true
+
+          
+              # Iniciar el contenedor de maria_db
+              docker run -d --name maria_db \
+                --network app-network \
+                -v db_data:/var/lib/mysql \
+                -e MYSQL_ROOT_PASSWORD=root \
+                -e MYSQL_DATABASE=prograred \
+                -p 3310:3306 \
+                --restart always \
+                mariadb:latest
+
+
+              # Iniciar el contenedor de go_mariadb
+              docker run -d --name go_mariadb \
+                --network app-network \
+                --restart always \
+                -p 4004:4004 \
+               sebastianwebapp/go_mariadb:latest
+  
+
+  
+              echo "Despliegue completado exitosamente"
+              docker ps
