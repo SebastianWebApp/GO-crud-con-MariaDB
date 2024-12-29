@@ -1,0 +1,36 @@
+version: '3'
+
+services:
+  go_mariadb:
+    build: .
+    image: sebastianwebapp/go_mariadb
+    container_name: go_mariadb
+    ports:
+      - "4004:4004"  # Mapea el puerto 4004 del contenedor al puerto 4004 en tu máquina
+    depends_on:
+      - maria_db
+    restart: always
+    networks:
+      - app_network
+
+  maria_db:
+    image: mariadb:latest
+    container_name: maria_db
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: prograred
+    restart: always
+    ports:
+      - "3310:3306"  # Mapea el puerto 3310 de la máquina al puerto 3310 del contenedor
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - app_network
+
+volumes:
+  db_data:
+
+networks:
+  app_network:
+    driver: bridge
+
