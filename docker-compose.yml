@@ -3,7 +3,7 @@ version: '3'
 services:
   go_mariadb:
     build: .
-    image: sebastianwebapp/go_mariadb
+    image: sebastianwebapp/go_mariadb:latest
     container_name: go_mariadb
     ports:
       - "4004:4004"  # Mapea el puerto 4004 del contenedor al puerto 4004 en tu máquina
